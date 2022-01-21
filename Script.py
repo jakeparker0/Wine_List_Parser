@@ -1,9 +1,9 @@
 import os
 import operator
 from docx import Document
-from docx.shared import Pt
+from docx.shared import Pt, Inches
 from docx.enum.text import WD_BREAK
-
+from docx.enum.style import WD_STYLE_TYPE
 
 class Wine:
     """
@@ -13,7 +13,7 @@ class Wine:
     """
 
     def __init__(self, name, year, btl, notes, region="", gls=None):
-        self.name = name
+        self.name = name.strip() #remove any white space
         self.year = year
         self.btl = btl
         self.gls = gls
@@ -82,7 +82,6 @@ def get_text(file):
 
 def start(text):
     """
-
     :param text: Text to be read
     Will skip until it reads "Canberra Riesling, which is where the tasting notes start
     :return:
@@ -96,7 +95,6 @@ def get_wines(pos, text):
     """
     The function looks through the text line by line and matches the pattern than the tasting notes
     are written in and creates a Wine object, which is stored in a dictionary
-
     :param pos: Position in text to start read at
     :param text: text to read [strings]
     :return: None
@@ -135,7 +133,11 @@ def get_wines(pos, text):
                 gls = None
 
             try:
-                wine = Wine(split[0].split(" ", 1)[1], year, btl, text[i + 1], rgn, gls)
+                notes = text[i+1]
+                if text[i+2] != "\n":
+                    notes += text[i+2]
+
+                wine = Wine(split[0].split(" ", 1)[1], year, btl, notes, rgn, gls)
                 # create key by removing whitespace in year and name
                 key = (wine.year + wine.name.lower()).replace(" ", "")
                 wine_dict.setdefault(key, wine)
@@ -164,28 +166,48 @@ def output_list_doc(wines):
     output_doc = Document()
     output_doc.add_heading("All Wines", 0)
     count = 0
-    form = output_doc.styles['Normal'].paragraph_format
-    form.keep_together = True
-    form.line_spacing = 1.0
+
+    styles = output_doc.styles 
+    header = styles.add_style('Wine Header', WD_STYLE_TYPE.PARAGRAPH)
+    header.base_style = styles['Normal']
+    header_font = header.font
+    header_font.name, header_font.bold, header_font.size = 'Galyon', True, Pt(11)
+    form1 = header.paragraph_format
+    form1.line_spacing = 1.0
+    form1.space_after = 0
+    form1.keep_with_next = True
+
+    body = styles.add_style('Body', WD_STYLE_TYPE.PARAGRAPH)
+    body.base_style = styles['Normal']
+    body_font = body.font
+    body_font.name, body_font.size = 'Galyon', Pt(11)
+    form2 = body.paragraph_format
+    form2.line_spacing = 1.0
+    form2.space_after = 0 
+    form2.keep_with_next = False
+    form2.left_indent = Inches(0.5) #size of tab
 
     for w in wines:
         count += 1
-        p = output_doc.add_paragraph("", )
-        r = p.add_run()
-        f = r.font
-        f.bold, f.name, f.size = True, "Galyon", Pt(11)
-        r.add_text(str(w))
-        r.add_break(WD_BREAK.LINE)
 
-        n = p.add_run()
-        nf = n.font
-        nf.name, nf.size = "Gaylon", Pt(11)
+        p = output_doc.add_paragraph()
+        p.style = output_doc.styles['Wine Header']
+        r = p.add_run()
+        r.add_text(str(w))
+
+        p2 = output_doc.add_paragraph()
+        p2.style = output_doc.styles['Body']
+        n = p2.add_run()
+        # nf = n.font
+        # nf.name, nf.size = "Gaylon", Pt(11)
         n.add_text(w.notes)
+        n.add_break(WD_BREAK.LINE)
+    
 
         # Go to next page after 11 so it looks neat
-        if count == 11:
-            n.add_break(WD_BREAK.PAGE)
-            count = 0
+        # if count == 11:
+        #     n.add_break(WD_BREAK.PAGE)
+        #     count = 0
 
     output_doc.save("output.docx")
 
